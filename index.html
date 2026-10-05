@@ -218,7 +218,7 @@
   </div>
 
   <footer>
-    Max. <span id="maxInfo"></span> Anmeldungen pro Person &middot; pro Zeitslot nur eine Aktivität &middot;
+    Genau <span id="maxInfo"></span> Anmeldungen pro Person erforderlich &middot; pro Zeitslot nur eine Aktivität &middot;
     nach dem Senden sind keine Änderungen mehr möglich.
   </footer>
 </div>
@@ -359,8 +359,19 @@
   }
 
   function updateSubmitState() {
-    submitBtn.disabled = submitted || pending.length === 0 || !nameSelect.value;
-    pendingInfo.textContent = pending.length ? `${pending.length} Auswahl(en) noch nicht gesendet` : "";
+    const me = nameSelect.value;
+    const total = me ? confirmedCount(me) + pending.length : 0;
+    const needed = CONFIG.maxTotalPerPerson - total;
+
+    submitBtn.disabled = submitted || !me || needed > 0;
+
+    if (!me) {
+      pendingInfo.textContent = "";
+    } else if (needed > 0) {
+      pendingInfo.textContent = `Noch ${needed} Auswahl(en) nötig (insgesamt ${CONFIG.maxTotalPerPerson} erforderlich).`;
+    } else {
+      pendingInfo.textContent = pending.length ? `${pending.length} Auswahl(en) noch nicht gesendet` : "";
+    }
   }
 
   function onCellClick(btn) {
