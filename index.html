@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anmeldung</title>
+<style>
+  :root {
+    --bg: #f6f7f5;
+    --card: #ffffff;
+    --text: #1f2a24;
+    --muted: #6b7570;
+    --border: #dfe3e0;
+    --free: #dff5e1;
+    --free-border: #8fd99f;
+    --taken: #fbe1e1;
+    --taken-border: #e38a8a;
+    --mine: #dbeafe;
+    --mine-border: #6ea8e8;
+    --pending: #fdf1d3;
+    --pending-border: #e8bb5c;
+    --locked: #eceeec;
+    --accent: #2f8f5b;
+    --accent-dark: #226b43;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181a;
+      --card: #1c2224;
+      --text: #e7ece9;
+      --muted: #96a19c;
+      --border: #2d3537;
+      --free: #163a26;
+      --free-border: #2f7a4d;
+      --taken: #3a1f21;
+      --taken-border: #8a3a3a;
+      --mine: #1d3250;
+      --mine-border: #4d7fc4;
+      --pending: #3a2f12;
+      --pending-border: #c89a3f;
+      --locked: #23292b;
+      --accent: #4bb87d;
+      --accent-dark: #6fd79a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 60px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 24px; font-size: 0.95rem; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 20px;
+  }
+
+  label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 6px; }
+  select {
+    width: 100%;
+    max-width: 360px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  select:disabled { opacity: 0.6; }
+
+  #status {
+    min-height: 1.4em;
+    font-size: 0.9rem;
+    margin-top: 12px;
+    color: var(--accent-dark);
+  }
+  #status.error { color: #c0392b; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); margin-top: 14px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 14px; height: 14px; border-radius: 4px; display: inline-block; border: 1px solid var(--border); }
+
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 480px; }
+  th, td { border: 1px solid var(--border); padding: 0; text-align: center; }
+  th {
+    background: var(--card);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 10px 8px;
+  }
+  td.slot-label {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    color: var(--text);
+    white-space: nowrap;
+    background: var(--card);
+  }
+  td.cell { padding: 0; }
+  .cell-btn {
+    width: 100%;
+    min-height: 54px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 6px 4px;
+    background: var(--free);
+    color: var(--accent-dark);
+    transition: filter 0.1s;
+  }
+  .cell-btn:hover:not(:disabled) { filter: brightness(0.96); }
+  .cell-btn.taken { background: var(--taken); color: #8a3030; cursor: not-allowed; }
+  .cell-btn.mine { background: var(--mine); color: #1d4d8a; }
+  .cell-btn.pending { background: var(--pending); color: #8a6a1d; }
+  .cell-btn.locked { background: var(--locked); color: var(--muted); cursor: not-allowed; }
+  .cell-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.8rem; color: var(--muted); }
+  button.refresh {
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    min-width: 150px;
+  }
+  button.refresh:disabled { opacity: 0.6; cursor: wait; }
+
+  .submit-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  button.submit {
+    border: none;
+    background: var(--accent);
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 12px 22px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.submit:disabled { background: var(--locked); color: var(--muted); cursor: not-allowed; }
+  #pendingInfo { font-size: 0.85rem; color: var(--muted); }
+
+  footer { margin-top: 30px; font-size: 0.78rem; color: var(--muted); text-align: center; }
+
+  /* Ladescreen */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 24, 26, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  #overlay.show { display: flex; }
+  .overlay-box {
+    background: var(--card);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 28px 34px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Anmeldung</h1>
+  <p class="sub">Namen auswählen, freie Plätze anklicken (auch wieder abwählbar) und am Ende auf "Senden" drücken.</p>
+
+  <div class="card">
+    <label for="nameSelect">Dein Name</label>
+    <select id="nameSelect"><option value="">Lädt...</option></select>
+    <div id="status"></div>
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--free);border-color:var(--free-border)"></span> frei</span>
+      <span><span class="swatch" style="background:var(--pending);border-color:var(--pending-border)"></span> ausgewählt, noch nicht gesendet</span>
+      <span><span class="swatch" style="background:var(--mine);border-color:var(--mine-border)"></span> deine bestätigte Anmeldung</span>
+      <span><span class="swatch" style="background:var(--taken);border-color:var(--taken-border)"></span> voll/belegt</span>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <span id="updatedInfo">&nbsp;</span>
+    <button class="refresh" id="refreshBtn">Jetzt aktualisieren</button>
+  </div>
+
+  <div class="card table-scroll">
+    <table id="grid"><tbody><tr><td style="padding:16px;color:var(--muted)">Lädt...</td></tr></tbody></table>
+  </div>
+
+  <div class="card submit-row">
+    <button class="submit" id="submitBtn" disabled>Senden</button>
+    <span id="pendingInfo"></span>
+  </div>
+
+  <footer>
+    Max. <span id="maxInfo"></span> Anmeldungen pro Person &middot; pro Zeitslot nur eine Aktivität &middot;
+    nach dem Senden sind keine Änderungen mehr möglich.
+  </footer>
+</div>
+
+<div id="overlay">
+  <div class="overlay-box">
+    <div class="spinner"></div>
+    <div>Wird gesendet…</div>
+  </div>
+</div>
+
+<!-- ======================================================================
+     KONFIGURATION
+     Namen, Aktivitäten und Zeitslots trägst du direkt im Google Sheet ein
+     (siehe README) — hier stellst du nur noch das Limit und die
+     Apps-Script-URL ein.
+
+     Tipp: Schreibst du bei einer Aktivität direkt (ohne Leerzeichen) eine
+     Zahl in Klammern dahinter, z. B. "Kassa(5)", dürfen sich in diesem
+     Zeitslot bis zu 5 Personen für diese Aktivität eintragen. Ohne Klammer
+     gilt automatisch 1 Person pro Zeitslot und Aktivität.
+     ====================================================================== -->
+<script>
+  const CONFIG = {
+    maxTotalPerPerson: 3,
+    webAppUrl: "https://script.google.com/macros/s/AKfycbzfjZfv_UUcB_Fb3Ds5tqpGCS8iYYz0lXEMnIQvdxomthNSmjfEanjcyv9WOg7E_beM/exec"
+  };
+</script>
+<!-- ====================================================================== -->
+
+<script>
+(function () {
+  const statusEl = document.getElementById("status");
+  const nameSelect = document.getElementById("nameSelect");
+  const gridEl = document.getElementById("grid");
+  const updatedInfo = document.getElementById("updatedInfo");
+  const submitBtn = document.getElementById("submitBtn");
+  const pendingInfo = document.getElementById("pendingInfo");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const overlay = document.getElementById("overlay");
+  document.getElementById("maxInfo").textContent = CONFIG.maxTotalPerPerson;
+
+  let activities = [], activityCapacity = {}, slots = [], names = [], roster = {};
+  let pending = []; // [{slot, activity}] — lokal, noch nicht gesendet
+  let submitted = false;
+  let loadedOnce = false;
+
+  function setStatus(msg, isError) {
+    statusEl.textContent = msg || "";
+    statusEl.className = isError ? "error" : "";
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function showOverlay(show) { overlay.classList.toggle("show", show); }
+
+  function capacityOf(act) { return activityCapacity[act] || 1; }
+  function confirmedCount(name) {
+    return Object.values(roster[name] || {}).filter(v => v).length;
+  }
+  function isNameFull(name) {
+    return confirmedCount(name) >= CONFIG.maxTotalPerPerson;
+  }
+  function occupantsOf(slot, activity) {
+    return names.filter(n => (roster[n] || {})[slot] === activity);
+  }
+  function isPending(slot, activity) {
+    return pending.some(p => p.slot === slot && p.activity === activity);
+  }
+  function myAssignedSlots(name) {
+    const set = new Set();
+    Object.entries(roster[name] || {}).forEach(([s, a]) => { if (a) set.add(s); });
+    pending.forEach(p => set.add(p.slot));
+    return set;
+  }
+
+  function buildNameSelect() {
+    const prev = nameSelect.value;
+    const available = names.filter(n => !isNameFull(n) || n === prev);
+    nameSelect.innerHTML = '<option value="">-- Name wählen --</option>' +
+      available.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+    if (available.includes(prev)) nameSelect.value = prev;
+    nameSelect.disabled = submitted;
+  }
+
+  function buildTable() {
+    if (!activities.length || !slots.length) {
+      gridEl.innerHTML = '<tbody><tr><td style="padding:16px;color:var(--muted)">' +
+        'Noch keine Aktivitäten oder Zeitslots im Sheet gefunden (Zeile 1 bzw. Zeile 3).</td></tr></tbody>';
+      return;
+    }
+    let html = "<thead><tr><th>Zeitslot</th>";
+    activities.forEach(a => { html += `<th>${escapeHtml(a)}</th>`; });
+    html += "</tr></thead><tbody>";
+    slots.forEach(slot => {
+      html += `<tr><td class="slot-label">${escapeHtml(slot)}</td>`;
+      activities.forEach(a => {
+        html += `<td class="cell"><button class="cell-btn" data-slot="${escapeHtml(slot)}" data-act="${escapeHtml(a)}"></button></td>`;
+      });
+      html += "</tr>";
+    });
+    html += "</tbody>";
+    gridEl.innerHTML = html;
+    gridEl.querySelectorAll(".cell-btn").forEach(btn => btn.addEventListener("click", () => onCellClick(btn)));
+  }
+
+  function renderCells() {
+    const me = nameSelect.value;
+    gridEl.querySelectorAll(".cell-btn").forEach(btn => {
+      const slot = btn.dataset.slot, act = btn.dataset.act;
+      btn.classList.remove("taken", "mine", "pending", "locked");
+      btn.disabled = submitted;
+
+      const cap = capacityOf(act);
+      const occupants = occupantsOf(slot, act);
+      const mine = me && occupants.includes(me);
+      const full = occupants.length >= cap;
+
+      if (mine) {
+        btn.classList.add("mine");
+        btn.textContent = cap > 1 ? `du (${occupants.length}/${cap})` : (occupants[0] + " (du)");
+        return;
+      }
+      if (full) {
+        btn.classList.add("taken");
+        btn.textContent = cap > 1 ? `voll (${occupants.length}/${cap})` : occupants[0];
+        return;
+      }
+      if (me && isPending(slot, act)) {
+        btn.classList.add("pending");
+        btn.textContent = "ausgewählt";
+        return;
+      }
+      btn.textContent = cap > 1 ? (occupants.length ? `${occupants.length}/${cap} frei` : `frei (0/${cap})`) : "frei";
+      if (!me) btn.classList.add("locked");
+    });
+    updateSubmitState();
+  }
+
+  function updateSubmitState() {
+    submitBtn.disabled = submitted || pending.length === 0 || !nameSelect.value;
+    pendingInfo.textContent = pending.length ? `${pending.length} Auswahl(en) noch nicht gesendet` : "";
+  }
+
+  function onCellClick(btn) {
+    if (submitted) return;
+    const slot = btn.dataset.slot, act = btn.dataset.act;
+    const me = nameSelect.value;
+    if (!me) { setStatus("Bitte zuerst deinen Namen auswählen.", true); return; }
+
+    const occupants = occupantsOf(slot, act);
+    if (occupants.includes(me)) return; // schon bestätigt, nichts zu tun
+
+    if (isPending(slot, act)) {
+      pending = pending.filter(p => !(p.slot === slot && p.activity === act));
+      setStatus("");
+      renderCells();
+      return;
+    }
+
+    const cap = capacityOf(act);
+    if (occupants.length >= cap) {
+      setStatus(`Dieser Platz ist bereits voll (${occupants.length}/${cap}).`, true);
+      return;
+    }
+
+    const assignedSlots = myAssignedSlots(me);
+    if (assignedSlots.has(slot)) {
+      setStatus("Für diesen Zeitslot hast du schon etwas ausgewählt bzw. bist dort schon angemeldet.", true);
+      return;
+    }
+    const remaining = CONFIG.maxTotalPerPerson - confirmedCount(me) - pending.length;
+    if (remaining <= 0) {
+      setStatus(`Du hast bereits die maximale Anzahl (${CONFIG.maxTotalPerPerson}) ausgewählt.`, true);
+      return;
+    }
+    pending.push({ slot, activity: act });
+    setStatus("");
+    renderCells();
+  }
+
+  async function refresh(silent) {
+    if (!CONFIG.webAppUrl || CONFIG.webAppUrl.indexOf("http") !== 0) {
+      setStatus("Bitte die Apps-Script-URL in der Konfiguration eintragen.", true);
+      return;
+    }
+    try {
+      const res = await fetch(CONFIG.webAppUrl + "?t=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) throw new Error("Serverfehler (" + res.status + ")");
+      const data = await res.json();
+      activities = data.activities || [];
+      activityCapacity = data.activityCapacity || {};
+      slots = data.slots || [];
+      names = data.names || [];
+      roster = data.roster || {};
+      if (!loadedOnce) { buildTable(); loadedOnce = true; }
+      buildNameSelect();
+      renderCells();
+      updatedInfo.textContent = "Letzte Aktualisierung: " + new Date().toLocaleTimeString("de-AT");
+      if (!silent) setStatus("");
+    } catch (e) {
+      if (!silent) setStatus("Konnte Daten nicht laden: " + e.message, true);
+      throw e;
+    }
+  }
+
+  submitBtn.addEventListener("click", async () => {
+    if (submitted || !pending.length || !nameSelect.value) return;
+    submitBtn.disabled = true;
+    showOverlay(true);
+    setStatus("");
+    try {
+      const res = await fetch(CONFIG.webAppUrl, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "submitBatch",
+          name: nameSelect.value,
+          items: pending,
+          maxTotalPerPerson: CONFIG.maxTotalPerPerson
+        })
+      });
+      if (!res.ok) throw new Error("Serverfehler (" + res.status + ")");
+      const data = await res.json();
+      if (data.ok) {
+        submitted = true;
+        pending = [];
+        const failedCount = (data.failed || []).length;
+        await refresh(true);
+        renderCells();
+        if (failedCount) {
+          const details = data.failed.map(f => `${f.slot}/${f.activity} (${f.message})`).join("; ");
+          setStatus("Gespeichert — aber nicht mehr alles war frei: " + details, true);
+        } else {
+          setStatus("Danke! Deine Anmeldung wurde gespeichert.");
+        }
+      } else {
+        setStatus(data.message || "Das hat nicht geklappt.", true);
+        submitBtn.disabled = false;
+      }
+    } catch (e) {
+      setStatus("Fehler beim Senden: " + e.message, true);
+      submitBtn.disabled = false;
+    } finally {
+      showOverlay(false);
+    }
+  });
+
+  refreshBtn.addEventListener("click", async () => {
+    refreshBtn.disabled = true;
+    const original = refreshBtn.textContent;
+    refreshBtn.textContent = "Aktualisiere…";
+    try {
+      await refresh(false);
+      refreshBtn.textContent = "Aktualisiert";
+    } catch (e) {
+      refreshBtn.textContent = "Fehlgeschlagen";
+    } finally {
+      setTimeout(() => { refreshBtn.textContent = original; refreshBtn.disabled = false; }, 1200);
+    }
+  });
+
+  nameSelect.addEventListener("change", () => {
+    pending = [];
+    renderCells();
+  });
+
+  refresh(false).catch(() => {});
+  setInterval(() => { if (!submitted) refresh(true).catch(() => {}); }, 7000);
+})();
+</script>
+</body>
+</html>
