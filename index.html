@@ -53,7 +53,9 @@
   }
   .wrap { max-width: 960px; margin: 0 auto; }
   h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 0 0 10px; }
   p.sub { color: var(--muted); margin: 0 0 24px; font-size: 0.95rem; }
+  p.hint { color: var(--muted); margin: 0 0 14px; font-size: 0.85rem; }
 
   .card {
     background: var(--card);
@@ -125,6 +127,35 @@
   .cell-btn.locked { background: var(--locked); color: var(--muted); cursor: not-allowed; }
   .cell-btn:disabled { opacity: 0.7; cursor: not-allowed; }
 
+  td.cell.linked { display: flex; gap: 6px; padding: 4px; }
+  td.cell.linked .cell-btn { flex: 1; min-height: 46px; }
+
+  .check-grid { display: flex; flex-direction: column; gap: 4px; }
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 8px 6px;
+    border-radius: 8px;
+  }
+  .check-row input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
+  .check-row input[type="checkbox"]:disabled { cursor: not-allowed; }
+  .check-text { color: var(--text); }
+  .check-meta { color: var(--muted); font-size: 0.8rem; }
+  .check-row.mine { background: var(--mine); }
+  .check-row.pending { background: var(--pending); }
+  .check-row.taken { background: var(--taken); opacity: 0.85; cursor: not-allowed; }
+  .check-row.locked { opacity: 0.6; cursor: not-allowed; }
+
+  @keyframes blink-red {
+    0%, 100% { box-shadow: 0 0 0 3px #c0392b inset; }
+    50% { box-shadow: 0 0 0 3px transparent inset; }
+  }
+  .cell-btn.conflict { animation: blink-red 0.5s ease-in-out 5; }
+  .check-row.conflict { animation: blink-red 0.5s ease-in-out 5; border-radius: 8px; }
+
   .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.8rem; color: var(--muted); }
   button.refresh {
     border: 1px solid var(--border);
@@ -184,6 +215,18 @@
     animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .overlay-icon {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .overlay-icon.error { background: var(--taken); color: #c0392b; }
+  .overlay-icon.success { background: var(--free); color: var(--accent-dark); }
 </style>
 </head>
 <body>
@@ -200,6 +243,7 @@
       <span><span class="swatch" style="background:var(--pending);border-color:var(--pending-border)"></span> ausgewählt, noch nicht gesendet</span>
       <span><span class="swatch" style="background:var(--mine);border-color:var(--mine-border)"></span> deine bestätigte Anmeldung</span>
       <span><span class="swatch" style="background:var(--taken);border-color:var(--taken-border)"></span> voll/belegt</span>
+      <span><span class="swatch" style="background:var(--locked);border-color:var(--border)"></span> erst nach Namensauswahl wählbar</span>
     </div>
   </div>
 
@@ -212,19 +256,25 @@
     <table id="grid"><tbody><tr><td style="padding:16px;color:var(--muted)">Lädt...</td></tr></tbody></table>
   </div>
 
+  <div class="card" id="checkCard">
+    <h2>Weitere Anmeldungen</h2>
+    <p class="hint">Ohne Zeitbezug. Mit <strong>*</strong> markierte sind Pflicht — mindestens eine davon muss gewählt werden, solange nicht alle mit * markierten bereits voll sind.</p>
+    <div class="check-grid" id="checkGrid"></div>
+  </div>
+
   <div class="card submit-row">
     <button class="submit" id="submitBtn" disabled>Senden</button>
     <span id="pendingInfo"></span>
   </div>
 
   <footer>
-    Genau <span id="maxInfo"></span> Anmeldungen pro Person erforderlich &middot; pro Zeitslot nur eine Aktivität &middot;
+    Genau <span id="maxInfo"></span> Anmeldungen pro Person im Zeit-Raster erforderlich &middot; pro Zeitslot nur eine Aktivität &middot;
     nach dem Senden sind keine Änderungen mehr möglich.
   </footer>
 </div>
 
 <div id="overlay">
-  <div class="overlay-box">
+  <div class="overlay-box" id="overlayBox">
     <div class="spinner"></div>
     <div>Wird gesendet…</div>
   </div>
@@ -232,19 +282,30 @@
 
 <!-- ======================================================================
      KONFIGURATION
-     Namen, Aktivitäten und Zeitslots trägst du direkt im Google Sheet ein
-     (siehe README) — hier stellst du nur noch das Limit und die
-     Apps-Script-URL ein.
+     Namen, Aktivitäten, Zeitslots und Ankreuz-Aktivitäten trägst du direkt
+     im Google Sheet ein (siehe README) — hier stellst du nur noch das
+     Limit und die Apps-Script-URL ein.
 
-     Tipp: Schreibst du bei einer Aktivität direkt (ohne Leerzeichen) eine
-     Zahl in Klammern dahinter, z. B. "Kassa(5)", dürfen sich in diesem
-     Zeitslot bis zu 5 Personen für diese Aktivität eintragen. Ohne Klammer
-     gilt automatisch 1 Person pro Zeitslot und Aktivität.
+     Tipp Kapazität: Schreibst du bei einer Aktivität direkt (ohne
+     Leerzeichen) eine Zahl in Klammern dahinter, z. B. "Kassa(5)", dürfen
+     sich bis zu 5 Personen eintragen. Ohne Klammer gilt automatisch 1
+     Person.
+
+     Tipp Verknüpfung: Schreibst du bei einer Aktivität (Zeile 1) UND einem
+     Zeitslot (Zeile 3, Spalte B–F) direkt dahinter denselben Großbuchstaben
+     in eckigen Klammern, z. B. "Mittagessen(6)[A]" und "12:00[A]", wird bei
+     diesem Zeitslot nur noch diese eine Aktivität angezeigt. Reihenfolge
+     immer erst runde, dann eckige Klammer.
+
+     Tipp Ankreuz-Aktivitäten: Ab Zeile 3, Spalte G (fix, unabhängig davon
+     wie viele Zeitslots es gibt) können weitere Aktivitäten ohne Zeitbezug
+     stehen, z. B. "Fotografieren(4)*" (Pflicht-Gruppe, Max. 4) oder
+     "Lesen(10)" (kein Pflicht, nur Max. 10).
      ====================================================================== -->
 <script>
   const CONFIG = {
     maxTotalPerPerson: 3,
-    webAppUrl: "https://script.google.com/macros/s/AKfycbzfjZfv_UUcB_Fb3Ds5tqpGCS8iYYz0lXEMnIQvdxomthNSmjfEanjcyv9WOg7E_beM/exec"
+    webAppUrl: "https://script.google.com/macros/s/AKfycbwPh_MjcZS2AKMNG4HPjp74UPgHNJGl7WsxVrYn_DNX7XZQM1dMj0toutRdUFtV0WyI/exec"
   };
 </script>
 <!-- ====================================================================== -->
@@ -254,6 +315,7 @@
   const statusEl = document.getElementById("status");
   const nameSelect = document.getElementById("nameSelect");
   const gridEl = document.getElementById("grid");
+  const checkGridEl = document.getElementById("checkGrid");
   const updatedInfo = document.getElementById("updatedInfo");
   const submitBtn = document.getElementById("submitBtn");
   const pendingInfo = document.getElementById("pendingInfo");
@@ -261,8 +323,10 @@
   const overlay = document.getElementById("overlay");
   document.getElementById("maxInfo").textContent = CONFIG.maxTotalPerPerson;
 
-  let activities = [], activityCapacity = {}, slots = [], names = [], roster = {};
+  let activityCapacity = {}, normalActivities = [], slots = [], slotLinked = {}, slotAllowedActivities = {}, names = [], roster = {};
+  let checkItems = [], checkCapacity = {}, checkRequired = {}, checkRoster = {};
   let pending = []; // [{slot, activity}] — lokal, noch nicht gesendet
+  let pendingCheck = []; // [itemName, ...] — lokal, noch nicht gesendet
   let submitted = false;
   let loadedOnce = false;
 
@@ -274,13 +338,20 @@
     return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
   function showOverlay(show) { overlay.classList.toggle("show", show); }
+  function setOverlayState(state) {
+    const box = document.getElementById("overlayBox");
+    if (state === "error") {
+      box.innerHTML = '<div class="overlay-icon error">!</div><div>Nicht mehr alles frei</div>';
+    } else if (state === "success") {
+      box.innerHTML = '<div class="overlay-icon success">✓</div><div>Angemeldet</div>';
+    } else {
+      box.innerHTML = '<div class="spinner"></div><div>Wird gesendet…</div>';
+    }
+  }
 
   function capacityOf(act) { return activityCapacity[act] || 1; }
   function confirmedCount(name) {
     return Object.values(roster[name] || {}).filter(v => v).length;
-  }
-  function isNameFull(name) {
-    return confirmedCount(name) >= CONFIG.maxTotalPerPerson;
   }
   function occupantsOf(slot, activity) {
     return names.filter(n => (roster[n] || {})[slot] === activity);
@@ -295,34 +366,92 @@
     return set;
   }
 
+  function checkOccupants(item) {
+    return names.filter(n => (checkRoster[n] || {})[item]);
+  }
+  function isCheckFull(item) {
+    return checkOccupants(item).length >= (checkCapacity[item] || 1);
+  }
+  function isCheckPending(item) {
+    return pendingCheck.includes(item);
+  }
+  function myConfirmedCheckItems(name) {
+    return Object.entries(checkRoster[name] || {}).filter(([, v]) => v).map(([k]) => k);
+  }
+  function requiredCheckItems() {
+    return checkItems.filter(it => checkRequired[it]);
+  }
+  function isRequiredGroupFull() {
+    const req = requiredCheckItems();
+    if (!req.length) return true;
+    return req.every(isCheckFull);
+  }
+  function hasRequiredSelected(name) {
+    const req = requiredCheckItems();
+    const mine = new Set(myConfirmedCheckItems(name).concat(pendingCheck));
+    return req.some(it => mine.has(it));
+  }
+  function checkRequirementSatisfied(name) {
+    if (!name) return false;
+    return hasRequiredSelected(name) || isRequiredGroupFull();
+  }
+
   function buildNameSelect() {
     const prev = nameSelect.value;
-    const available = names.filter(n => !isNameFull(n) || n === prev);
     nameSelect.innerHTML = '<option value="">-- Name wählen --</option>' +
-      available.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
-    if (available.includes(prev)) nameSelect.value = prev;
+      names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+    if (names.includes(prev)) nameSelect.value = prev;
     nameSelect.disabled = submitted;
   }
 
   function buildTable() {
-    if (!activities.length || !slots.length) {
+    const hasAnyColumn = normalActivities.length > 0 || slots.some(s => slotLinked[s]);
+    if (!slots.length || !hasAnyColumn) {
       gridEl.innerHTML = '<tbody><tr><td style="padding:16px;color:var(--muted)">' +
         'Noch keine Aktivitäten oder Zeitslots im Sheet gefunden (Zeile 1 bzw. Zeile 3).</td></tr></tbody>';
       return;
     }
     let html = "<thead><tr><th>Zeitslot</th>";
-    activities.forEach(a => { html += `<th>${escapeHtml(a)}</th>`; });
+    normalActivities.forEach(a => { html += `<th>${escapeHtml(a)}</th>`; });
     html += "</tr></thead><tbody>";
     slots.forEach(slot => {
       html += `<tr><td class="slot-label">${escapeHtml(slot)}</td>`;
-      activities.forEach(a => {
-        html += `<td class="cell"><button class="cell-btn" data-slot="${escapeHtml(slot)}" data-act="${escapeHtml(a)}"></button></td>`;
-      });
+      if (slotLinked[slot]) {
+        const allowed = slotAllowedActivities[slot] || [];
+        const colspan = Math.max(normalActivities.length, 1);
+        html += `<td class="cell linked" colspan="${colspan}">` +
+          allowed.map(a => `<button class="cell-btn" data-slot="${escapeHtml(slot)}" data-act="${escapeHtml(a)}"></button>`).join("") +
+          `</td>`;
+      } else {
+        normalActivities.forEach(a => {
+          html += `<td class="cell"><button class="cell-btn" data-slot="${escapeHtml(slot)}" data-act="${escapeHtml(a)}"></button></td>`;
+        });
+      }
       html += "</tr>";
     });
     html += "</tbody>";
     gridEl.innerHTML = html;
     gridEl.querySelectorAll(".cell-btn").forEach(btn => btn.addEventListener("click", () => onCellClick(btn)));
+  }
+
+  function buildCheckItems() {
+    if (!checkItems.length) {
+      checkCardVisible(false);
+      return;
+    }
+    checkCardVisible(true);
+    checkGridEl.innerHTML = checkItems.map(item => {
+      const star = checkRequired[item] ? " *" : "";
+      return `<label class="check-row" data-item="${escapeHtml(item)}">` +
+        `<input type="checkbox" class="check-input" data-item="${escapeHtml(item)}">` +
+        `<span class="check-text">${escapeHtml(item)}${star}</span>` +
+        `<span class="check-meta"></span>` +
+        `</label>`;
+    }).join("");
+    checkGridEl.querySelectorAll(".check-input").forEach(cb => cb.addEventListener("change", () => onCheckToggle(cb)));
+  }
+  function checkCardVisible(show) {
+    document.getElementById("checkCard").style.display = show ? "" : "none";
   }
 
   function renderCells() {
@@ -355,6 +484,44 @@
       btn.textContent = cap > 1 ? (occupants.length ? `${occupants.length}/${cap} frei` : `frei (0/${cap})`) : "frei";
       if (!me) btn.classList.add("locked");
     });
+  }
+
+  function renderCheckItems() {
+    const me = nameSelect.value;
+    checkGridEl.querySelectorAll(".check-row").forEach(row => {
+      const item = row.dataset.item;
+      const input = row.querySelector(".check-input");
+      const meta = row.querySelector(".check-meta");
+      row.classList.remove("mine", "pending", "taken", "locked");
+
+      const cap = checkCapacity[item] || 1;
+      const occCount = checkOccupants(item).length;
+      const mine = me && !!(checkRoster[me] || {})[item];
+      const pendingSel = isCheckPending(item);
+      const full = occCount >= cap;
+
+      input.checked = !!(mine || pendingSel);
+      input.disabled = submitted || !me || (!mine && !pendingSel && full);
+
+      if (mine) {
+        row.classList.add("mine");
+        meta.textContent = "bestätigt";
+      } else if (pendingSel) {
+        row.classList.add("pending");
+        meta.textContent = "ausgewählt";
+      } else if (full) {
+        row.classList.add("taken");
+        meta.textContent = `voll (${occCount}/${cap})`;
+      } else {
+        meta.textContent = cap > 1 ? `(${occCount}/${cap})` : "";
+      }
+      if (!me) row.classList.add("locked");
+    });
+  }
+
+  function renderAll() {
+    renderCells();
+    renderCheckItems();
     updateSubmitState();
   }
 
@@ -362,16 +529,17 @@
     const me = nameSelect.value;
     const total = me ? confirmedCount(me) + pending.length : 0;
     const needed = CONFIG.maxTotalPerPerson - total;
+    const checkOk = me ? checkRequirementSatisfied(me) : false;
 
-    submitBtn.disabled = submitted || !me || needed > 0;
+    submitBtn.disabled = submitted || !me || needed > 0 || !checkOk;
 
-    if (!me) {
-      pendingInfo.textContent = "";
-    } else if (needed > 0) {
-      pendingInfo.textContent = `Noch ${needed} Auswahl(en) nötig (insgesamt ${CONFIG.maxTotalPerPerson} erforderlich).`;
-    } else {
-      pendingInfo.textContent = pending.length ? `${pending.length} Auswahl(en) noch nicht gesendet` : "";
+    const parts = [];
+    if (me && needed > 0) parts.push(`Noch ${needed} Zeit-Auswahl(en) nötig (insgesamt ${CONFIG.maxTotalPerPerson} erforderlich).`);
+    if (me && !checkOk) parts.push("Bitte mindestens eine Pflicht-Aktivität (mit *) ankreuzen.");
+    if (!parts.length && (pending.length || pendingCheck.length)) {
+      parts.push(`${pending.length + pendingCheck.length} Auswahl(en) noch nicht gesendet`);
     }
+    pendingInfo.textContent = me ? parts.join(" ") : "";
   }
 
   function onCellClick(btn) {
@@ -386,7 +554,7 @@
     if (isPending(slot, act)) {
       pending = pending.filter(p => !(p.slot === slot && p.activity === act));
       setStatus("");
-      renderCells();
+      renderAll();
       return;
     }
 
@@ -408,7 +576,85 @@
     }
     pending.push({ slot, activity: act });
     setStatus("");
-    renderCells();
+    renderAll();
+  }
+
+  // Prüft, ob zwischenzeitlich (durch jemand anderen) eine lokal noch nicht
+  // gesendete Auswahl voll geworden ist. Entfernt solche Einträge aus
+  // pending/pendingCheck und gibt sie zurück, damit sie visuell markiert
+  // und per Statusmeldung angezeigt werden können.
+  function detectConflicts() {
+    const me = nameSelect.value;
+    if (!me || submitted) return { slotConflicts: [], checkConflicts: [] };
+
+    const slotConflicts = [];
+    pending = pending.filter(p => {
+      const occupants = occupantsOf(p.slot, p.activity);
+      if (occupants.length >= capacityOf(p.activity) && !occupants.includes(me)) {
+        slotConflicts.push(p);
+        return false;
+      }
+      return true;
+    });
+
+    const checkConflicts = [];
+    pendingCheck = pendingCheck.filter(item => {
+      if (isCheckFull(item) && !(checkRoster[me] || {})[item]) {
+        checkConflicts.push(item);
+        return false;
+      }
+      return true;
+    });
+
+    return { slotConflicts, checkConflicts };
+  }
+
+  function flashConflicts(slotConflicts, checkConflicts) {
+    if (slotConflicts.length) {
+      gridEl.querySelectorAll(".cell-btn").forEach(btn => {
+        const match = slotConflicts.some(c => c.slot === btn.dataset.slot && c.activity === btn.dataset.act);
+        if (match) {
+          btn.classList.add("conflict");
+          setTimeout(() => btn.classList.remove("conflict"), 2600);
+        }
+      });
+    }
+    if (checkConflicts.length) {
+      checkGridEl.querySelectorAll(".check-row").forEach(row => {
+        if (checkConflicts.includes(row.dataset.item)) {
+          row.classList.add("conflict");
+          setTimeout(() => row.classList.remove("conflict"), 2600);
+        }
+      });
+    }
+  }
+
+  function onCheckToggle(input) {
+    const item = input.dataset.item;
+    const me = nameSelect.value;
+
+    if (!me) {
+      input.checked = false;
+      setStatus("Bitte zuerst deinen Namen auswählen.", true);
+      return;
+    }
+    if (submitted || (checkRoster[me] || {})[item]) {
+      input.checked = true; // bereits bestätigt/gesendet, nicht mehr änderbar
+      return;
+    }
+
+    if (input.checked) {
+      if (isCheckFull(item)) {
+        input.checked = false;
+        setStatus(`"${item}" ist bereits voll.`, true);
+        return;
+      }
+      if (!pendingCheck.includes(item)) pendingCheck.push(item);
+    } else {
+      pendingCheck = pendingCheck.filter(i => i !== item);
+    }
+    setStatus("");
+    renderAll();
   }
 
   async function refresh(silent) {
@@ -420,16 +666,31 @@
       const res = await fetch(CONFIG.webAppUrl + "?t=" + Date.now(), { cache: "no-store" });
       if (!res.ok) throw new Error("Serverfehler (" + res.status + ")");
       const data = await res.json();
-      activities = data.activities || [];
       activityCapacity = data.activityCapacity || {};
+      normalActivities = data.normalActivities || [];
       slots = data.slots || [];
+      slotLinked = data.slotLinked || {};
+      slotAllowedActivities = data.slotAllowedActivities || {};
+      checkItems = data.checkItems || [];
+      checkCapacity = data.checkCapacity || {};
+      checkRequired = data.checkRequired || {};
       names = data.names || [];
       roster = data.roster || {};
-      if (!loadedOnce) { buildTable(); loadedOnce = true; }
+      checkRoster = data.checkRoster || {};
+      if (!loadedOnce) { buildTable(); buildCheckItems(); loadedOnce = true; }
       buildNameSelect();
-      renderCells();
+
+      const { slotConflicts, checkConflicts } = detectConflicts();
+      renderAll();
       updatedInfo.textContent = "Letzte Aktualisierung: " + new Date().toLocaleTimeString("de-AT");
-      if (!silent) setStatus("");
+
+      if (slotConflicts.length || checkConflicts.length) {
+        flashConflicts(slotConflicts, checkConflicts);
+        const descs = slotConflicts.map(c => `"${c.activity}" bei "${c.slot}"`).concat(checkConflicts.map(i => `"${i}"`));
+        setStatus(`Achtung: ${descs.join(", ")} wurde inzwischen von jemand anderem belegt — bitte neu auswählen.`, true);
+      } else if (!silent) {
+        setStatus("");
+      }
     } catch (e) {
       if (!silent) setStatus("Konnte Daten nicht laden: " + e.message, true);
       throw e;
@@ -437,9 +698,10 @@
   }
 
   submitBtn.addEventListener("click", async () => {
-    if (submitted || !pending.length || !nameSelect.value) return;
+    if (submitted || !nameSelect.value || submitBtn.disabled) return;
     submitBtn.disabled = true;
     showOverlay(true);
+    setOverlayState("loading");
     setStatus("");
     try {
       const res = await fetch(CONFIG.webAppUrl, {
@@ -448,32 +710,42 @@
           action: "submitBatch",
           name: nameSelect.value,
           items: pending,
+          checkItems: pendingCheck,
           maxTotalPerPerson: CONFIG.maxTotalPerPerson
         })
       });
       if (!res.ok) throw new Error("Serverfehler (" + res.status + ")");
       const data = await res.json();
       if (data.ok) {
-        submitted = true;
         pending = [];
+        pendingCheck = [];
         const failedCount = (data.failed || []).length;
+        // Nur bei einer vollständig erfolgreichen Sendung endgültig sperren —
+        // bei Teilausfällen soll ohne Neuladen eine Ersatzauswahl möglich sein.
+        submitted = failedCount === 0;
         await refresh(true);
-        renderCells();
+        renderAll();
         if (failedCount) {
-          const details = data.failed.map(f => `${f.slot}/${f.activity} (${f.message})`).join("; ");
-          setStatus("Gespeichert — aber nicht mehr alles war frei: " + details, true);
+          const details = data.failed.map(f =>
+            f.type === "check" ? `${f.item} (${f.message})` : `${f.slot}/${f.activity} (${f.message})`
+          ).join("; ");
+          setStatus("Gespeichert — aber nicht mehr alles war frei: " + details + " Bitte Ersatz auswählen und erneut senden.", true);
+          setOverlayState("error");
+          setTimeout(() => showOverlay(false), 3000);
         } else {
           setStatus("Danke! Deine Anmeldung wurde gespeichert.");
+          setOverlayState("success");
+          setTimeout(() => showOverlay(false), 5000);
         }
       } else {
+        showOverlay(false);
         setStatus(data.message || "Das hat nicht geklappt.", true);
         submitBtn.disabled = false;
       }
     } catch (e) {
+      showOverlay(false);
       setStatus("Fehler beim Senden: " + e.message, true);
       submitBtn.disabled = false;
-    } finally {
-      showOverlay(false);
     }
   });
 
@@ -493,7 +765,8 @@
 
   nameSelect.addEventListener("change", () => {
     pending = [];
-    renderCells();
+    pendingCheck = [];
+    renderAll();
   });
 
   refresh(false).catch(() => {});
