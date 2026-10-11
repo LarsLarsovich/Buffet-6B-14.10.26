@@ -31,6 +31,7 @@ body{margin:0;background:var(--ink);overflow:hidden;cursor:none;font-family:var(
 /* scenes */
 .scene{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .5s ease}
 .scene.on{opacity:1;visibility:visible}
+#stage.reset .scene{transition:none}
 .food{position:absolute;filter:drop-shadow(0 18px 22px rgba(15,45,70,.25))}
 .food img{width:100%;display:block}
 .bob{animation:bob 4s ease-in-out infinite}
@@ -212,6 +213,7 @@ body{margin:0;background:var(--ink);overflow:hidden;cursor:none;font-family:var(
     idx=i%scenes.length;
     scenes.forEach(function(s,k){ s.classList.remove('on'); dots[k].classList.toggle('on',k===idx); });
     void stage.offsetWidth;                  // restart CSS animations
+    stage.classList.remove('reset');
     scenes[idx].classList.add('on');
     bar.style.transition='none';bar.style.width='0';
     void bar.offsetWidth;
@@ -220,6 +222,17 @@ body{margin:0;background:var(--ink);overflow:hidden;cursor:none;font-family:var(
     timer=setTimeout(function(){show(idx+1)},durations[idx]);
   }
   show(0);
+
+  // tab hidden: clear the stage right away, so coming back starts at scene 1 without a flash of the old one
+  function reset(){
+    clearTimeout(timer);
+    stage.classList.add('reset');
+    scenes.forEach(function(s,k){ s.classList.remove('on'); dots[k].classList.remove('on'); });
+    bar.style.transition='none';bar.style.width='0';
+    void stage.offsetWidth;
+  }
+  document.addEventListener('visibilitychange',function(){ if(document.hidden) reset(); else show(0); });
+  window.addEventListener('pageshow',function(e){ if(e.persisted){ reset(); show(0); } });
 
   // keyboard: arrows to skip
   document.addEventListener('keydown',function(e){
