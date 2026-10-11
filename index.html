@@ -18,8 +18,8 @@
 }
 html,body{height:100%}
 body{margin:0;background:var(--ink);overflow:hidden;cursor:none;font-family:var(--body);color:var(--ink)}
-#wrap{position:fixed;inset:0;display:grid;place-items:center;background:var(--ink)}
-#stage{width:1920px;height:1080px;position:relative;overflow:hidden;background:var(--sun);transform-origin:center;flex:none}
+#wrap{position:fixed;inset:0;overflow:hidden;background:var(--ink)}
+#stage{width:1920px;height:1080px;position:absolute;left:50%;top:50%;margin:-540px 0 0 -960px;overflow:hidden;background:var(--sun);transform-origin:center}
 
 /* corner blobs */
 .blob{position:absolute;pointer-events:none}
@@ -192,10 +192,15 @@ body{margin:0;background:var(--ink);overflow:hidden;cursor:none;font-family:var(
 (function(){
   var stage=document.getElementById('stage');
   function fit(){
-    var s=Math.min(window.innerWidth/1920,window.innerHeight/1080);
+    var w=document.documentElement.clientWidth||window.innerWidth;
+    var h=window.innerHeight||document.documentElement.clientHeight;
+    var s=Math.min(w/1920,h/1080);
     stage.style.transform='scale('+s+')';
   }
-  window.addEventListener('resize',fit);fit();
+  window.addEventListener('resize',fit);
+  window.addEventListener('orientationchange',function(){setTimeout(fit,300)});
+  document.addEventListener('fullscreenchange',fit);
+  fit();
 
   var scenes=[].slice.call(document.querySelectorAll('.scene'));
   var dots=[].slice.call(document.querySelectorAll('#dots b'));
@@ -225,7 +230,12 @@ body{margin:0;background:var(--ink);overflow:hidden;cursor:none;font-family:var(
   // click  fullscreen, keep screen awake
   document.addEventListener('click',function(){
     var el=document.documentElement;
-    try{ if(!document.fullscreenElement&&el.requestFullscreen) el.requestFullscreen().catch(function(){}); }catch(e){}
+    try{
+      if(!document.fullscreenElement&&el.requestFullscreen) el.requestFullscreen().then(function(){
+        // phones: turn to landscape so the stage fills the screen
+        if(screen.orientation&&screen.orientation.lock) screen.orientation.lock('landscape').catch(function(){});
+      }).catch(function(){});
+    }catch(e){}
   });
   function wake(){ try{ if(navigator.wakeLock) navigator.wakeLock.request('screen').catch(function(){}); }catch(e){} }
   wake(); document.addEventListener('visibilitychange',function(){ if(!document.hidden) wake(); });
