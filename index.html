@@ -56,8 +56,8 @@ body{margin:0;background:var(--ink);overflow:hidden;cursor:none;font-family:var(
 #s1 .date{position:absolute;left:156px;top:610px;display:flex;align-items:baseline;gap:36px}
 #s1 .date .day{font-size:64px}
 #s1 .date .num{font-size:130px}
-.date .heute{color:var(--tomato);display:inline-block;transform-origin:left 70%;animation:pochen 1.2s ease-in-out 1.4s infinite}
-@keyframes pochen{0%,45%,100%{transform:scale(1);text-shadow:0 0 0 rgba(213,40,40,0)}12%{transform:scale(1.15);text-shadow:0 0 40px rgba(213,40,40,.7)}24%{transform:scale(1.02)}34%{transform:scale(1.1);text-shadow:0 0 28px rgba(213,40,40,.5)}}
+.date .heute{color:var(--tomato);display:inline-block;transform-origin:left 70%;animation:blinken 1s steps(1) 1.4s infinite}
+@keyframes blinken{50%{opacity:0}}
 .tag .heute{color:var(--tomato);font-weight:900}
 #s1 .sub{position:absolute;left:158px;top:820px;font-size:40px;font-weight:600;font-stretch:100%;max-width:1300px;margin:0;background:var(--ink);color:var(--sun);padding:18px 30px;border-radius:18px}
 
